@@ -2,8 +2,13 @@ name: Watch iPhone 16e refurbished
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # 30分ごと（UTC基準・多少遅延あり）
-  workflow_dispatch: {}       # 手動実行ボタン
+    - cron: "*/10 * * * *"   # 10分ごと（UTC基準・多少遅延あり）
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "監視対象モデル(スラグ)。例: 16e / 15-plus"
+        required: false
+        default: "16e"
 
 permissions:
   contents: write             # state.json のコミットに必要
@@ -24,17 +29,19 @@ jobs:
 
       - name: Check Apple refurbished store
         env:
+          WATCH_MODEL: ${{ github.event.inputs.model || '16e' }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python check.py
 
       - name: Commit state if changed
         run: |
-          if ! git diff --quiet -- state.json; then
+          if ! git diff --quiet -- state_*.json 2>/dev/null; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add state.json
+            git add state_*.json
             git commit -m "Update notified state"
             git push
           fi
