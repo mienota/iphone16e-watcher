@@ -1,20 +1,20 @@
-name: Watch iPhone 16e refurbished
+name: Stock watchers
 
 on:
   schedule:
     - cron: "*/10 * * * *"   # 10分ごと（UTC基準・多少遅延あり）
   workflow_dispatch:
     inputs:
-      model:
-        description: "監視対象モデル(スラグ)。例: 16e / 15-plus"
+      target:
+        description: "監視対象。空なら全ターゲット。例: apple-16e / montbell / apple-15-plus"
         required: false
-        default: "16e"
+        default: ""
 
 permissions:
-  contents: write             # state.json のコミットに必要
+  contents: write             # state_*.json のコミットに必要
 
 concurrency:
-  group: watch-iphone16e
+  group: stock-watchers
   cancel-in-progress: false
 
 jobs:
@@ -27,14 +27,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check Apple refurbished store
+      - name: Run watchers
         env:
-          WATCH_MODEL: ${{ github.event.inputs.model || '16e' }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python check.py
+          INPUT_TARGET: ${{ github.event.inputs.target }}
+        run: |
+          # workflow_dispatch で target 指定があればそれだけ、無ければ全ターゲット
+          targets="${INPUT_TARGET:-apple-16e montbell}"
+          for t in $targets; do
+            echo "===== $t ====="
+            WATCH_TARGET="$t" python check.py || echo "[warn] $t 失敗（続行）"
+          done
 
       - name: Commit state if changed
         run: |
