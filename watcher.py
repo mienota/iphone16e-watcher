@@ -45,6 +45,11 @@ class Watcher:
     #   False … 在庫が切れて復活したら再通知する（例: モンベルの再入荷監視）
     sticky_state: bool = True
 
+    timeout: int = 60  # 秒。ポケセンオンラインは重く30秒では足りないことがある
+
+    # find_items() が {キー: 表示名} を入れておくと通知本文に使われる（任意）
+    titles: dict[str, str] = {}
+
     # ---- サブクラスでオーバーライドするメソッド ----------------------------
     def find_items(self, html: str) -> dict[str, str]:
         """監視対象を {一意キー: 詳細URL} で返す。存在するものだけ入れる。
@@ -54,8 +59,8 @@ class Watcher:
         raise NotImplementedError
 
     def describe(self, key: str, url: str) -> str:
-        """通知本文に出す1行の表示名。既定はURLをそのまま。必要なら整形。"""
-        return url
+        """通知本文に出す1行の表示名。titles にあればそれ、無ければURL。"""
+        return self.titles.get(key) or url
 
     @property
     def fetch_url(self) -> str:
@@ -68,7 +73,7 @@ class Watcher:
     # ---- 共通処理（通常オーバーライド不要） --------------------------------
     def fetch(self) -> str:
         req = urllib.request.Request(self.fetch_url, headers=self.headers())
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
 
     def _state_file(self) -> Path:

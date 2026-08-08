@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "監視対象。空なら全ターゲット。例: apple-16e / montbell / apple-15-plus"
+        description: "監視対象。空なら全ターゲット。例: apple-16e / montbell / pco-news / chusen"
         required: false
         default: ""
 
@@ -36,7 +36,8 @@ jobs:
           INPUT_TARGET: ${{ github.event.inputs.target }}
         run: |
           # workflow_dispatch で target 指定があればそれだけ、無ければ全ターゲット
-          targets="${INPUT_TARGET:-apple-16e montbell}"
+          # amazon-pokeca はボット対策で失敗しがちだが、失敗しても他は続行する
+          targets="${INPUT_TARGET:-apple-16e montbell pco-news pokecard-info pco-stock chusen amazon-pokeca}"
           for t in $targets; do
             echo "===== $t ====="
             WATCH_TARGET="$t" python check.py || echo "[warn] $t 失敗（続行）"

@@ -2,8 +2,13 @@
 """汎用入荷ウォッチャーのエントリポイント。
 
 WATCH_TARGET で監視対象を選ぶ（既定 apple-16e）。実体は targets.py。
-  WATCH_TARGET=apple-16e   … Apple整備済ストアの iPhone 16e（WATCH_MODELでも可）
-  WATCH_TARGET=montbell    … モンベル ライトアルパインダウンパーカ BK×XL 再入荷
+  WATCH_TARGET=apple-16e      … Apple整備済ストアの iPhone 16e（WATCH_MODELでも可）
+  WATCH_TARGET=montbell       … モンベル ライトアルパインダウンパーカ BK×XL 再入荷
+  WATCH_TARGET=pco-news       … ポケセンオンラインの抽選/受注/再販の告知
+  WATCH_TARGET=pokecard-info  … ポケカ公式(pokemon-card.com)のお知らせ
+  WATCH_TARGET=pco-stock      … ポケセンオンラインで狙った商品が購入可能に
+  WATCH_TARGET=chusen         … 入荷Nowの抽選まとめ（ジャンル横断）
+  WATCH_TARGET=amazon-pokeca  … Amazon検索にポケカ拡張パックの新着
 
 サイトを増やすときは watcher.Watcher を継承して targets.TARGETS に足すだけ。
 """
