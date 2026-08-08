@@ -15,9 +15,11 @@ find_items が返すのは {一意キー: 詳細URL} の dict。
 状態は state_<slug>.json に保存される（サイトごとに独立）。
 """
 
+import contextlib
 import json
 import os
 import smtplib
+import socket
 import urllib.request
 from email.mime.text import MIMEText
 from email.utils import formataddr
@@ -27,6 +29,26 @@ DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
+
+
+@contextlib.contextmanager
+def _ipv4_only():
+    """名前解決をIPv4に限定する。
+
+    GitHub Actions の runner は IPv6 を持つが、相手サイトの IPv6 経路が
+    黒穴になっていると「接続拒否」ではなく「タイムアウト」で固まる。
+    ローカルでは一瞬で取れるのに Actions だけ timeout する場合はこれが原因。
+    """
+    original = socket.getaddrinfo
+
+    def ipv4_getaddrinfo(host, port, family=0, *args, **kwargs):
+        return original(host, port, socket.AF_INET, *args, **kwargs)
+
+    socket.getaddrinfo = ipv4_getaddrinfo
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original
 
 
 class Watcher:
@@ -46,6 +68,7 @@ class Watcher:
     sticky_state: bool = True
 
     timeout: int = 60  # 秒。ポケセンオンラインは重く30秒では足りないことがある
+    ipv4_only: bool = False  # IPv6経路で固まるサイトは True にする
 
     # find_items() が {キー: 表示名} を入れておくと通知本文に使われる（任意）
     titles: dict[str, str] = {}
@@ -73,8 +96,9 @@ class Watcher:
     # ---- 共通処理（通常オーバーライド不要） --------------------------------
     def fetch(self) -> str:
         req = urllib.request.Request(self.fetch_url, headers=self.headers())
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            return resp.read().decode("utf-8", errors="replace")
+        with _ipv4_only() if self.ipv4_only else contextlib.nullcontext():
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return resp.read().decode("utf-8", errors="replace")
 
     def _state_file(self) -> Path:
         return Path(__file__).with_name(f"state_{self.slug}.json")

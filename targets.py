@@ -75,6 +75,9 @@ class MontbellWatcher(Watcher):
 
     sticky_state = False  # 在庫は増減する。切れて復活したら再通知したい。
     emoji_tag = "jacket"
+    # モンベルはIPv6で接続すると応答が返らずタイムアウトする（ローカルは0.4秒、
+    # GitHub Actionsだけ60秒タイムアウトで判明）。IPv4に固定して回避する。
+    ipv4_only = True
 
     def __init__(
         self,
@@ -305,6 +308,10 @@ class AmazonSearchWatcher(Watcher):
         # 検索結果タイルは data-asin から次の data-asin までが1件（1件で10KB超えるので
         # 正規表現で丸ごと囲まず、出現位置で切り出す）。商品名は img の alt に入っている。
         marks = [m for m in self._asin.finditer(html)]
+        if not marks:
+            # 検索結果に商品タイルが1件も無いのは「該当なし」ではなく取得失敗。
+            # 200で中身が空のロボットチェックページを掴んでいる。0件と報告しない。
+            raise RuntimeError(f"Amazonの検索結果に商品タイルが0件（取得失敗の疑い, {len(html)}バイト）")
         bounds = [m.start() for m in marks] + [len(html)]
 
         found: dict[str, str] = {}
