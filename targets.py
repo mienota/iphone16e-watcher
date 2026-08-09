@@ -62,6 +62,9 @@ class MontbellWatcher(Watcher):
     sticky_state = False  # 在庫は増減する。切れて復活したら再通知したい。
     emoji_tag = "jacket"
     notify_channel = "MONTBELL"  # NTFY_TOPIC_MONTBELL があればそちらへ送る
+    # 遮断されたIPからだと接続が握り潰されて既定の60秒を待たされる。
+    # 通るときはローカルもrunnerも数秒なので、短く切って早く諦める。
+    timeout = 25
     # モンベルはIPv6で接続すると応答が返らずタイムアウトする（ローカルは0.4秒、
     # GitHub Actionsだけ60秒タイムアウトで判明）。IPv4に固定して回避する。
     ipv4_only = True

@@ -4,7 +4,12 @@ on:
   schedule:
     # cronはUTC。GitHub側の混雑で間引かれるので「最短でもこの間隔」という意味。
     - cron: "*/10 * * * *"   # 高頻度: apple-16e（整備済は早い者勝ち）
-    - cron: "5 23 * * *"     # 1日1回 08:05 JST: montbell（再入荷は急がない）
+    # montbell は runner のIPによって遮断されたりされなかったりする（1/3くらい失敗）。
+    # 1日1回だと外れた日が丸ごと欠測になるので、時間を散らして1日3回叩く。
+    # 在庫が続いている間は再通知しない仕組みなので、通知が3倍になることはない。
+    - cron: "5 23 * * *"     # 08:05 JST
+    - cron: "5 4 * * *"      # 13:05 JST
+    - cron: "5 10 * * *"     # 19:05 JST
   workflow_dispatch:
     inputs:
       target:
@@ -42,18 +47,18 @@ jobs:
         run: |
           # 対象の決め方:
           #   手動で target 指定あり … それだけ
-          #   1日1回のcron          … montbell
           #   10分ごとのcron        … apple-16e
+          #   それ以外のcron        … montbell（時刻を足しても下の分岐は触らなくていい）
           #   手動で target 空欄     … 全部（動作確認用）
-          # montbell は一時期 Actions から遮断されていたが 2026-08-09 に復活を確認。
-          # 再び遮断されたら find_items が「数量セレクト0件」で落ちるので、
-          # 黙って「完売」と誤報することはない（失敗しても他のターゲットは続行）。
+          # montbell は runner のIPしだいで接続タイムアウトする。失敗しても
+          # find_items の「数量セレクト0件」ガードがあるので、黙って「完売」と
+          # 誤報することはなく、単にその回が欠測になるだけ。
           if [ -n "$INPUT_TARGET" ]; then
             targets="$INPUT_TARGET"
-          elif [ "$SCHEDULE" = "5 23 * * *" ]; then
-            targets="montbell"
-          elif [ -n "$SCHEDULE" ]; then
+          elif [ "$SCHEDULE" = "*/10 * * * *" ]; then
             targets="apple-16e"
+          elif [ -n "$SCHEDULE" ]; then
+            targets="montbell"
           else
             targets="apple-16e montbell"
           fi
