@@ -83,6 +83,10 @@ class MontbellWatcher(Watcher):
         self.url = f"https://webshop.montbell.jp/goods/disp.php?product_id={self.product_id}"
         self.from_name = "Montbell Watcher"
 
+    # 商品ページなら必ず存在する「<SIZE>_<COLOR>_num」形式の数量セレクト。
+    # 1つも無ければ商品ページを掴めていない（取得失敗の判定に使う）。
+    _any_select = re.compile(r'name="[A-Z0-9]+_[A-Z0-9]+_num"')
+
     def _in_stock(self, html: str, color: str, size: str) -> bool:
         m = re.search(
             rf'name="{re.escape(size)}_{re.escape(color)}_num"[^>]*>(.*?)</select>',
@@ -95,6 +99,14 @@ class MontbellWatcher(Watcher):
         return any(v.isdigit() and int(v) >= 1 for v in opts)
 
     def find_items(self, html: str) -> dict[str, str]:
+        # 数量セレクトが1つも無いページは「全色全サイズ完売」ではなく取得失敗
+        # （ブロックページ・エラーページ・商品ID変更など）。0件＝異常なしと
+        # 誤報しないよう、ここで落とす。Amazonと同じ考え方。
+        if not self._any_select.search(html):
+            raise RuntimeError(
+                f"モンベルのページに数量セレクトが0件（取得失敗の疑い, {len(html)}バイト）"
+            )
+
         found: dict[str, str] = {}
         for color in self.colors:
             for size in self.sizes:
