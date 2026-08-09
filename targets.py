@@ -21,6 +21,7 @@ class AppleRefurbWatcher(Watcher):
     """
 
     sticky_state = True  # 整備済は「登場イベント」。一度通知したら終わり。
+    notify_channel = "APPLE"  # NTFY_TOPIC_APPLE があればそちらへ送る
 
     def __init__(self, model: str = "16e"):
         self.model = model.strip().lower()
@@ -60,6 +61,7 @@ class MontbellWatcher(Watcher):
 
     sticky_state = False  # 在庫は増減する。切れて復活したら再通知したい。
     emoji_tag = "jacket"
+    notify_channel = "MONTBELL"  # NTFY_TOPIC_MONTBELL があればそちらへ送る
     # モンベルはIPv6で接続すると応答が返らずタイムアウトする（ローカルは0.4秒、
     # GitHub Actionsだけ60秒タイムアウトで判明）。IPv4に固定して回避する。
     ipv4_only = True

@@ -62,6 +62,12 @@ class Watcher:
     from_name: str = "Site Watcher"  # メール差出人の表示名
     emoji_tag: str = "tada"        # ntfy のアイコン絵文字タグ
 
+    # ntfy の宛先トピックを分けたいときの識別子（英大文字）。
+    # "MONTBELL" なら環境変数 NTFY_TOPIC_MONTBELL を優先して使い、
+    # 未設定なら共通の NTFY_TOPIC にフォールバックする。
+    # スマホ側では別トピック＝別の購読になるので、片方だけミュートできる。
+    notify_channel: str = ""
+
     # 通知の繰り返し方:
     #   True  … 一度検知したら二度と通知しない（例: Apple整備済の初登場）
     #   False … 在庫が切れて復活したら再通知する（例: モンベルの再入荷監視）
@@ -143,9 +149,17 @@ class Watcher:
             server.send_message(msg)
         print(f"メール送信済み -> {recipient}")
 
+    def ntfy_topic(self) -> str:
+        """送信先トピック。ターゲット専用があればそれ、無ければ共通のものを使う。"""
+        if self.notify_channel:
+            own = os.environ.get(f"NTFY_TOPIC_{self.notify_channel}", "").strip()
+            if own:
+                return own
+        return os.environ.get("NTFY_TOPIC", "").strip()
+
     def send_ntfy(self, items: dict[str, str]) -> None:
-        """ntfy.sh へスマホプッシュ。NTFY_TOPIC 未設定なら何もしない。"""
-        topic = os.environ.get("NTFY_TOPIC", "").strip()
+        """ntfy.sh へスマホプッシュ。トピックが決まらなければ何もしない。"""
+        topic = self.ntfy_topic()
         if not topic:
             return
         server = os.environ.get("NTFY_SERVER", "https://ntfy.sh").rstrip("/")
@@ -165,7 +179,8 @@ class Watcher:
         )
         with urllib.request.urlopen(req, timeout=20):
             pass
-        print("ntfy通知送信済み")
+        # トピック名は秘密（知っていれば誰でも送受信できる）なのでログに出さない
+        print(f"ntfy通知送信済み（チャンネル: {self.notify_channel or '共通'}）")
 
     def notify(self, items: dict[str, str]) -> None:
         """メールと ntfy を独立に送る（片方失敗でももう片方は送る）。"""

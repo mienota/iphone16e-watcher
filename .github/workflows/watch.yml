@@ -2,7 +2,9 @@ name: Stock watchers
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # 10分ごと（UTC基準・多少遅延あり）
+    # cronはUTC。GitHub側の混雑で間引かれるので「最短でもこの間隔」という意味。
+    - cron: "*/10 * * * *"   # 高頻度: apple-16e（整備済は早い者勝ち）
+    - cron: "5 23 * * *"     # 1日1回 08:05 JST: montbell（再入荷は急がない）
   workflow_dispatch:
     inputs:
       target:
@@ -33,13 +35,29 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC_APPLE: ${{ secrets.NTFY_TOPIC_APPLE }}
+          NTFY_TOPIC_MONTBELL: ${{ secrets.NTFY_TOPIC_MONTBELL }}
           INPUT_TARGET: ${{ github.event.inputs.target }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
-          # workflow_dispatch で target 指定があればそれだけ、無ければ定期実行の対象。
+          # 対象の決め方:
+          #   手動で target 指定あり … それだけ
+          #   1日1回のcron          … montbell
+          #   10分ごとのcron        … apple-16e
+          #   手動で target 空欄     … 全部（動作確認用）
           # montbell は一時期 Actions から遮断されていたが 2026-08-09 に復活を確認。
           # 再び遮断されたら find_items が「数量セレクト0件」で落ちるので、
           # 黙って「完売」と誤報することはない（失敗しても他のターゲットは続行）。
-          targets="${INPUT_TARGET:-apple-16e montbell}"
+          if [ -n "$INPUT_TARGET" ]; then
+            targets="$INPUT_TARGET"
+          elif [ "$SCHEDULE" = "5 23 * * *" ]; then
+            targets="montbell"
+          elif [ -n "$SCHEDULE" ]; then
+            targets="apple-16e"
+          else
+            targets="apple-16e montbell"
+          fi
+          echo "対象: $targets"
           for t in $targets; do
             echo "===== $t ====="
             WATCH_TARGET="$t" python check.py || echo "[warn] $t 失敗（続行）"
