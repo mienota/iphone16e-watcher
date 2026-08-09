@@ -7,12 +7,12 @@
 | ターゲット | 監視先 | 何を検知するか | 通知 |
 |---|---|---|---|
 | `apple-16e` | [Apple 整備済製品ストア](https://www.apple.com/jp/shop/refurbished/iphone) | iPhone 16e の初登場 | 一回きり |
-| `montbell` | [モンベル webshop](https://webshop.montbell.jp/goods/disp.php?product_id=1101606) | ライトアルパインダウン パーカ Men's **BK×XL** の再入荷 | 復活のたび |
+| `montbell` | [モンベル webshop](https://webshop.montbell.jp/goods/disp.php?product_id=1101606) | ライトアルパインダウン パーカ Men's **BK×XL** の再入荷 | 復活のたび（※定期実行からは除外中。下記） |
 
 ### 実運用上の注意
 
 - **GitHub Actions のスケジュールは当てにならない。** cron は `*/10` だが実測は平均1.7時間に1回まで間引かれる（混雑時にキューが捨てられるため）。数日の猶予がある入荷には十分間に合うが、**数秒で消える争奪戦には使えない**。
-- **モンベルは GitHub Actions からは取れない（実測）。** ローカルからは 0.4 秒で返るのに、runner からは 60 秒タイムアウト。IPv4 固定（`ipv4_only`）でも解消しないので、IPv6 経路の問題ではなく **IPレベルで落とされている**（Azure のデータセンターIP か 海外IPの遮断と思われる）。動かすには JP の住宅用IPか、Cloudflare Worker 等のプロキシ経由が必要。
+- **モンベルは GitHub Actions からは取れない（実測）。** ローカルからは 0.4 秒で返るのに、runner からは 60 秒タイムアウト。IPv4 固定（`ipv4_only`）でも解消しないので、IPv6 経路の問題ではなく **IPレベルで落とされている**（Azure のデータセンターIP か 海外IPの遮断と思われる）。毎回タイムアウトを待つだけなので **定期実行の対象からは外してある**（`targets=` に無い）。コードは残っているので、手動 dispatch で `montbell` を指定するか、日本の回線のローカルから `WATCH_TARGET=montbell python check.py` を叩けば動く。
 - 失敗したターゲットがあっても、ワークフローは残りを続行する。
 
 ## 仕組み（クラスをオーバーライドして汎用化）

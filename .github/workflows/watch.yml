@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "監視対象。空なら全ターゲット。例: apple-16e / montbell"
+        description: "監視対象。空なら定期実行と同じ（apple-16e）。montbell を指定すれば手動でも試せる"
         required: false
         default: ""
 
@@ -35,9 +35,10 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           INPUT_TARGET: ${{ github.event.inputs.target }}
         run: |
-          # workflow_dispatch で target 指定があればそれだけ、無ければ全ターゲット
-          # montbell はActionsからIP遮断されて失敗しがちだが、失敗しても他は続行する
-          targets="${INPUT_TARGET:-apple-16e montbell}"
+          # workflow_dispatch で target 指定があればそれだけ、無ければ定期実行の対象。
+          # montbell は Actions の IP から遮断されていて毎回60秒タイムアウトするだけなので
+          # 定期実行からは外してある（コードは残置。手動 dispatch / ローカルでは動く）。
+          targets="${INPUT_TARGET:-apple-16e}"
           for t in $targets; do
             echo "===== $t ====="
             WATCH_TARGET="$t" python check.py || echo "[warn] $t 失敗（続行）"
