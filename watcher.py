@@ -67,7 +67,7 @@ class Watcher:
     #   False … 在庫が切れて復活したら再通知する（例: モンベルの再入荷監視）
     sticky_state: bool = True
 
-    timeout: int = 60  # 秒。ポケセンオンラインは重く30秒では足りないことがある
+    timeout: int = 60  # 秒。重いサイトだと30秒では足りないことがある
     ipv4_only: bool = False  # IPv6経路で固まるサイトは True にする
 
     # find_items() が {キー: 表示名} を入れておくと通知本文に使われる（任意）

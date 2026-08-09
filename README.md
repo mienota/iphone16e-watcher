@@ -8,30 +8,12 @@
 |---|---|---|---|
 | `apple-16e` | [Apple 整備済製品ストア](https://www.apple.com/jp/shop/refurbished/iphone) | iPhone 16e の初登場 | 一回きり |
 | `montbell` | [モンベル webshop](https://webshop.montbell.jp/goods/disp.php?product_id=1101606) | ライトアルパインダウン パーカ Men's **BK×XL** の再入荷 | 復活のたび |
-| `pco-news` | [ポケモンセンターオンライン](https://www.pokemoncenter-online.com/) | お知らせに出る**抽選・受注・再販**の告知 | 一回きり |
-| `pokecard-info` | [ポケカ公式](https://www.pokemon-card.com/info/) | 新商品・拡張パック・抽選のお知らせ | 一回きり |
-| `pco-stock` | [ポケセン ポケカ一覧](https://www.pokemoncenter-online.com/pokemon-card-game/) | 狙った商品が**品切れバッジ無し**＝購入可能に | 復活のたび |
-| `chusen` | [入荷Now 抽選カテゴリ](https://nyuka-now.com/archives/category/chusen) | 新しい抽選ジャンルのまとめ記事（ポケカ以外も） | 一回きり |
-| `amazon-pokeca` | [Amazon 検索](https://www.amazon.co.jp/s?k=%E3%83%9D%E3%82%B1%E3%83%A2%E3%83%B3%E3%82%AB%E3%83%BC%E3%83%89+%E6%8B%A1%E5%BC%B5%E3%83%91%E3%83%83%E3%82%AF) | 拡張パックの新着ASIN | 一回きり |
 
 ### 実運用上の注意
 
-- **GitHub Actions のスケジュールは当てにならない。** cron は `*/10` だが実測は平均1.7時間に1回まで間引かれる（混雑時にキューが捨てられるため）。受付が数日ある**抽選には十分間に合うが、数秒で消える争奪戦には使えない**。
-- **Amazon は GitHub Actions からは取れない（実測）。** 家庭用回線でも体感5割が `503`（ヘッダを変えても変わらないランダムなレート制限）。Actions の runner からは `200` を返しつつ中身が **2.8KB のロボットチェックページ**で、商品タイルが0件。これを「該当なし」と誤報しないよう、タイルが1件も無い場合は例外で落とす。**動かすには JP の住宅用IPか、Cloudflare Worker 等のプロキシ経由が必要。**
-- **モンベルも GitHub Actions からは取れない（実測）。** ローカルからは 0.4 秒で返るのに、runner からは 60 秒タイムアウト。IPv4 固定（`ipv4_only`）でも解消しないので、IPv6 経路の問題ではなく **IPレベルで落とされている**（Azure のデータセンターIP か 海外IPの遮断と思われる）。こちらもプロキシ経由が必要。
+- **GitHub Actions のスケジュールは当てにならない。** cron は `*/10` だが実測は平均1.7時間に1回まで間引かれる（混雑時にキューが捨てられるため）。数日の猶予がある入荷には十分間に合うが、**数秒で消える争奪戦には使えない**。
+- **モンベルは GitHub Actions からは取れない（実測）。** ローカルからは 0.4 秒で返るのに、runner からは 60 秒タイムアウト。IPv4 固定（`ipv4_only`）でも解消しないので、IPv6 経路の問題ではなく **IPレベルで落とされている**（Azure のデータセンターIP か 海外IPの遮断と思われる）。動かすには JP の住宅用IPか、Cloudflare Worker 等のプロキシ経由が必要。
 - 失敗したターゲットがあっても、ワークフローは残りを続行する。
-- **`chusen` は「新ジャンルが抽選対象になった」検知。** キーはまとめ記事のURLなので、既存記事が日々更新されても再通知しない。個別の抽選開始を秒単位で追いたいなら `pco-news` の方が精度が高い。
-
-### キーワードの調整（コードを触らず環境変数で）
-
-| 環境変数 | 対象 | 既定値 |
-|---|---|---|
-| `PCO_NEWS_KEYWORDS` | `pco-news` | `抽選,受注,再販,予約` |
-| `POKECARD_KEYWORDS` | `pokecard-info` | `抽選,発売,予約,再販,受注,拡張パック` |
-| `PCO_STOCK_KEYWORDS` | `pco-stock` | `拡張パック,BOX,スペシャルセット,30周年` |
-| `PCO_STOCK_URL` | `pco-stock` | ポケカ一覧ページ（検索URLでも可） |
-| `CHUSEN_KEYWORDS` | `chusen` | 空＝全ジャンル |
-| `AMAZON_KEYWORDS` | `amazon-pokeca` | `拡張パック` |
 
 ## 仕組み（クラスをオーバーライドして汎用化）
 
@@ -40,10 +22,8 @@
 ```
 watcher.py   … 基底クラス Watcher（共通処理。基本いじらない）
 targets.py   … サイト別サブクラス＋レジストリ TARGETS
-               ├ AppleRefurbWatcher / MontbellWatcher / PokecenterStockWatcher … 在庫を見る系
-               ├ LinkFeedWatcher … 一覧ページからリンク＋タイトルを拾う共通クラス
-               │   └ PokecenterNewsWatcher / PokemonCardInfoWatcher / ChusenAggregatorWatcher
-               └ AmazonSearchWatcher … 検索結果の新着ASIN（ブロック対策のリトライ付き）
+               ├ AppleRefurbWatcher … 整備済ストアに指定モデルが並んだか
+               └ MontbellWatcher   … 指定カラー×サイズの在庫があるか
 check.py     … エントリ。WATCH_TARGET で対象を選んで run() するだけ
 state_<slug>.json … 通知済みキーの記録（サイトごとに独立。Actionsが自動コミット）
 ```
@@ -80,12 +60,11 @@ class MyShopWatcher(Watcher):
 TARGETS = {
     "apple-16e": lambda: AppleRefurbWatcher("16e"),
     "montbell":  lambda: MontbellWatcher(),
-    "pco-news":  lambda: PokecenterNewsWatcher(),
     "myshop":    lambda: MyShopWatcher(),   # 追加
 }
 ```
 
-3. `.github/workflows/watch.yml` の `targets="${INPUT_TARGET:-apple-16e montbell ...}"` に `myshop` を足す。
+3. `.github/workflows/watch.yml` の `targets="${INPUT_TARGET:-apple-16e montbell}"` に `myshop` を足す。
 
 必要に応じて `describe()`（本文の1行表示）、`fetch_url`（監視ページと取得ページが別なとき）、`headers()` もオーバーライドできます。
 
