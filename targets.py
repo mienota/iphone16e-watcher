@@ -14,34 +14,79 @@ from watcher import Watcher
 
 
 class AppleRefurbWatcher(Watcher):
-    """Apple 日本の整備済製品ストアに特定モデルが登場したら通知（初登場一回きり）。
+    """Apple 日本の整備済製品ストアに特定モデルが登場したら通知。
 
-    判定: 商品タイルURL (/jp/shop/product/<code>/a/iphone-<model>-...) の有無。
+    判定: 商品タイルURL (/jp/shop/product/<code>/a/iphone-<model>-<容量>-...) の有無。
     左サイドのフィルタ定義は全機種分類表で在庫と無関係なので使わない。
+
+    capacities を指定すると、その容量のタイルだけ通知対象にする
+    （例 ("128gb",) で最小容量モデルだけ）。None なら全容量。
     """
 
-    sticky_state = True  # 整備済は「登場イベント」。一度通知したら終わり。
+    # 整備済は載ったり消えたりする。買い逃した同じSKUが再登場したときに
+    # 鳴ってほしいので「一回きり」にはしない（消えたら忘れ、復活で再通知）。
+    sticky_state = False
     notify_channel = "APPLE"  # NTFY_TOPIC_APPLE があればそちらへ送る
 
-    def __init__(self, model: str = "16e"):
+    def __init__(self, model: str = "16e", capacities=None):
         self.model = model.strip().lower()
+        # ("128gb",) / ("128GB", "256gb") / "128gb" のどれでも受ける
+        if isinstance(capacities, str):
+            capacities = (capacities,)
+        self.capacities = tuple(c.strip().lower() for c in capacities) if capacities else ()
+
         label = "iPhone " + " ".join(
             w.capitalize() if w.isalpha() else w for w in self.model.split("-")
         )
+        cap_label = ""
+        if self.capacities:
+            cap_label = " " + "/".join(c.upper() for c in self.capacities)
         self.slug = f"apple-{self.model}"
-        self.display = f"Apple整備済製品ストアに {label} が登場！"
-        self.ascii_title = f"{label} available in refurb store!"  # labelはASCII
+        self.display = f"Apple整備済製品ストアに {label}{cap_label} が登場！"
+        self.ascii_title = f"{label}{cap_label} available in refurb store!"  # ASCIIのみ
         self.url = "https://www.apple.com/jp/shop/refurbished/iphone"
         self.from_name = "Apple Refurb Watcher"
         self._tile = re.compile(
             rf"/jp/shop/product/[a-z0-9]+/a/iphone-{re.escape(self.model)}[^\"'\s?]*",
             re.IGNORECASE,
         )
+        # モデル名の直後に来る容量表記。iphone-16e-128gb-... なら "128gb"。
+        # 直後であることを要求するのが肝で、iphone-15 に対して
+        # iphone-15-pro-max-256gb はここで一致しない（別モデル扱いになる）。
+        self._cap = re.compile(
+            rf"iphone-{re.escape(self.model)}-(\d+(?:gb|tb))(?=-|$)", re.IGNORECASE
+        )
+
+    # 機種を問わない iPhone タイル。1つも無ければ整備済ストアのページを掴めて
+    # いない（ブロック・改装・URL変更）。「0件＝まだ登場していない」と誤認
+    # しないための取得失敗ガード。モンベルの数量セレクトと同じ考え方。
+    _any_tile = re.compile(r"/jp/shop/product/[a-z0-9]+/a/iphone-", re.IGNORECASE)
+
+    # URLのどこかに容量表記があるか（モデル名の直後とは限らない）。
+    _any_cap = re.compile(r"-\d+(?:gb|tb)(?=-|$)", re.IGNORECASE)
 
     def find_items(self, html: str) -> dict[str, str]:
+        if not self._any_tile.search(html):
+            raise RuntimeError(
+                f"整備済ストアに iPhone タイルが0件（取得失敗の疑い, {len(html)}バイト）"
+            )
+
         found: dict[str, str] = {}
         for path in self._tile.findall(html):
             path = urllib.parse.unquote(path)
+            if self.capacities:
+                m = self._cap.search(path)
+                if m is not None:
+                    if m.group(1).lower() not in self.capacities:
+                        continue
+                elif self._any_cap.search(path):
+                    # 容量表記はあるがモデル名の直後ではない = 派生モデル
+                    # （iphone-15 に対する iphone-15-pro-max-256gb など）。対象外。
+                    continue
+                else:
+                    # 容量表記そのものが無い。URL形式が変わった可能性なので、
+                    # 取りこぼすより誤検知の方がマシと考えて通す（ログに出す）。
+                    print(f"[warn] 容量を判定できないタイル: {path}")
             m = re.search(r"/product/([a-z0-9]+)/", path)
             code = m.group(1) if m else path
             found[code] = "https://www.apple.com" + path
@@ -128,6 +173,7 @@ class MontbellWatcher(Watcher):
 #   apple-<model> は WATCH_MODEL でも指定可（後方互換）。
 #   モンベルの商品を変えたい場合は MontbellWatcher(product_id=..., colors=..., sizes=...)。
 TARGETS: dict[str, "callable"] = {
+    # 全容量。絞りたければ capacities=("128gb",) のように渡す（16eは128/256/512GB）。
     "apple-16e": lambda: AppleRefurbWatcher("16e"),
     "montbell": lambda: MontbellWatcher(),  # ライトアルパインダウンパーカ BK×XL
 }

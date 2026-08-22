@@ -6,8 +6,27 @@
 
 | ターゲット | 監視先 | 何を検知するか | 通知 | チェック頻度 | ntfyトピック |
 |---|---|---|---|---|---|
-| `apple-16e` | [Apple 整備済製品ストア](https://www.apple.com/jp/shop/refurbished/iphone) | iPhone 16e の初登場 | 一回きり | 10分ごと | `NTFY_TOPIC_APPLE` |
+| `apple-16e` | [Apple 整備済製品ストア](https://www.apple.com/jp/shop/refurbished/iphone) | iPhone 16e の登場（全容量） | 登場のたび | 10分ごと | `NTFY_TOPIC_APPLE` |
 | `montbell` | [モンベル webshop](https://webshop.montbell.jp/goods/disp.php?product_id=1101606) | ライトアルパインダウン パーカ Men's **BK×XL** の再入荷 | 復活のたび | 1日3回（08:05 / 13:05 / 19:05 JST） | `NTFY_TOPIC_MONTBELL` |
+
+### 容量でしぼる（Apple）
+
+整備済ストアの商品URLは `/jp/shop/product/<code>/a/iphone-16e-128gb-ブラック-SIMフリー-整備済製品`
+の形で、**モデル名の直後に容量が入る**。`AppleRefurbWatcher(capacities=...)` はここを見て、
+指定した容量のタイルだけを通知対象にする。
+
+```python
+AppleRefurbWatcher("16e")                                 # 全容量（現行設定）
+AppleRefurbWatcher("16e", capacities=("128gb",))          # 最小容量だけ
+AppleRefurbWatcher("16e", capacities=("128gb", "256gb"))  # 2つ狙う
+```
+
+- 16e の容量は 128 / 256 / 512GB。表記は URL に合わせて小文字 `"128gb"` で書く（大文字でも可）。
+- **現行は絞っていない**（全容量を通知）。通知が多すぎると感じたら `TARGETS` の1行に足すだけ。
+- **「直後」を要求しているのが肝。** `iphone-15` は `iphone-15-pro-max-256gb` にも前方一致して
+  しまうが、容量がモデル名の直後に無いものは派生モデルとみなして黙って捨てる。
+- 容量表記がURLのどこにも無いタイルは、Apple がURL形式を変えた可能性があるので
+  **捨てずに通知して `[warn]` をログに残す**。取りこぼすより誤通知の方がマシという判断。
 
 ### 通知先を分ける（ntfyトピック）
 
@@ -30,7 +49,7 @@ gh secret set NTFY_TOPIC_MONTBELL --body "montbell-restock-<推測されにく�
   - 対策1: **1日3回に時間を散らして叩く**（1回だけだと外れた日が丸ごと欠測になる）。在庫継続中は再通知しないので、通知が3倍になることはない。
   - 対策2: `MontbellWatcher.timeout = 25`。遮断された回に60秒待たされるのが無駄なので短く切っている。
   - 「遮断された」と一度観測しても恒久的とは限らない。プロキシを立てる前に何度か試すこと。
-- **「0件」と「取得失敗」を必ず区別する。** ブロックページを掴んでも各 `find_items()` は素直に0件を返すので、放っておくと「完売」と誤報し続ける。在庫を見る系のクラスは、商品ページなら必ずあるはずの要素（モンベルなら `<SIZE>_<COLOR>_num` の数量セレクト）が1つも無ければ例外で落とすようにしてある。
+- **「0件」と「取得失敗」を必ず区別する。** ブロックページを掴んでも各 `find_items()` は素直に0件を返すので、放っておくと「完売」と誤報し続ける。商品ページなら必ずあるはずの要素が1つも無ければ例外で落とすようにしてある（モンベルは `<SIZE>_<COLOR>_num` の数量セレクト、Apple は機種を問わない iPhone タイル）。Apple 側は狙いの機種が無い期間が長く0件が常態なので、このガードが無いと「ページを取れていない」状態と見分けがつかない。
 - 失敗したターゲットがあっても、ワークフローは残りを続行する。
 
 ## 仕組み（クラスをオーバーライドして汎用化）
@@ -49,8 +68,9 @@ state_<slug>.json … 通知済みキーの記録（サイトごとに独立。A
 `find_items(html)` は「**今ある対象だけ**」を `{一意キー: URL}` で返す約束。空なら未登場。あとは基底が差分を取り、新規キーだけ通知します。
 
 `sticky_state` で通知の繰り返し方を切り替えます:
-- `True`（Apple）… 一度検知したら二度と通知しない（登場イベント向け）
-- `False`（モンベル）… 在庫が切れて復活したら再通知する（再入荷監視向け）
+- `True` … 一度検知したら二度と通知しない（純粋な「初登場」イベント向け）
+- `False`（Apple / モンベル）… 在庫が切れて復活したら再通知する（買うのが目的ならこちら。
+  整備済は同じSKUが何度も出入りするので、一回きりだと買い逃した後に二度と鳴らない）
 
 ### 新しいサイトを足す
 
@@ -76,7 +96,7 @@ class MyShopWatcher(Watcher):
 
 ```python
 TARGETS = {
-    "apple-16e": lambda: AppleRefurbWatcher("16e"),
+    "apple-16e": lambda: AppleRefurbWatcher("16e", capacities=("128gb",)),
     "montbell":  lambda: MontbellWatcher(),
     "myshop":    lambda: MyShopWatcher(),   # 追加
 }
