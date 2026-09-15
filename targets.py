@@ -173,8 +173,9 @@ class MontbellWatcher(Watcher):
 #   apple-<model> は WATCH_MODEL でも指定可（後方互換）。
 #   モンベルの商品を変えたい場合は MontbellWatcher(product_id=..., colors=..., sizes=...)。
 TARGETS: dict[str, "callable"] = {
-    # 全容量。絞りたければ capacities=("128gb",) のように渡す（16eは128/256/512GB）。
+    # 全容量。絞りたければ capacities=("128gb",) のように渡す（16e/17eは128/256/512GB）。
     "apple-16e": lambda: AppleRefurbWatcher("16e"),
+    "apple-17e": lambda: AppleRefurbWatcher("17e"),
     "montbell": lambda: MontbellWatcher(),  # ライトアルパインダウンパーカ BK×XL
 }
 

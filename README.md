@@ -7,6 +7,7 @@
 | ターゲット | 監視先 | 何を検知するか | 通知 | チェック頻度 | ntfyトピック |
 |---|---|---|---|---|---|
 | `apple-16e` | [Apple 整備済製品ストア](https://www.apple.com/jp/shop/refurbished/iphone) | iPhone 16e の登場（全容量） | 登場のたび | 10分ごと | `NTFY_TOPIC_APPLE` |
+| `apple-17e` | 同上 | iPhone 17e の登場（全容量） | 登場のたび | 10分ごと | `NTFY_TOPIC_APPLE`（16eと共通） |
 | `montbell` | [モンベル webshop](https://webshop.montbell.jp/goods/disp.php?product_id=1101606) | ライトアルパインダウン パーカ Men's **BK×XL** の再入荷 | 復活のたび | 1日3回（08:05 / 13:05 / 19:05 JST） | `NTFY_TOPIC_MONTBELL` |
 
 ### 容量でしぼる（Apple）
@@ -21,7 +22,7 @@ AppleRefurbWatcher("16e", capacities=("128gb",))          # 最小容量だけ
 AppleRefurbWatcher("16e", capacities=("128gb", "256gb"))  # 2つ狙う
 ```
 
-- 16e の容量は 128 / 256 / 512GB。表記は URL に合わせて小文字 `"128gb"` で書く（大文字でも可）。
+- 16e / 17e の容量はどちらも 128 / 256 / 512GB。表記は URL に合わせて小文字 `"128gb"` で書く（大文字でも可）。
 - **現行は絞っていない**（全容量を通知）。通知が多すぎると感じたら `TARGETS` の1行に足すだけ。
 - **「直後」を要求しているのが肝。** `iphone-15` は `iphone-15-pro-max-256gb` にも前方一致して
   しまうが、容量がモデル名の直後に無いものは派生モデルとみなして黙って捨てる。
@@ -44,7 +45,7 @@ gh secret set NTFY_TOPIC_MONTBELL --body "montbell-restock-<推測されにく�
 ### 実運用上の注意
 
 - **GitHub Actions のスケジュールは当てにならない。** cron は `*/10` だが実測は平均1.7時間に1回まで間引かれる（混雑時にキューが捨てられるため）。数日の猶予がある入荷には十分間に合うが、**数秒で消える争奪戦には使えない**。1日1回の cron も同じ理由でたまに丸ごと飛ぶ。
-- **cron ごとに対象を変えている。** `watch.yml` は `github.event.schedule`（発火した cron 式そのものが入る）で分岐し、`*/10 * * * *` の回は `apple-16e`、**それ以外の cron はすべて** `montbell` を実行する。montbell の時刻を増減しても分岐は触らなくてよいが、**10分ごとの cron 式を書き換えるときは `run:` 内の比較文字列も必ず直すこと**（ずれると全部 montbell 扱いになり、Apple の監視が止まる）。
+- **cron ごとに対象を変えている。** `watch.yml` は `github.event.schedule`（発火した cron 式そのものが入る）で分岐し、`*/10 * * * *` の回は `apple-16e` と `apple-17e`、**それ以外の cron はすべて** `montbell` を実行する。montbell の時刻を増減しても分岐は触らなくてよいが、**10分ごとの cron 式を書き換えるときは `run:` 内の比較文字列も必ず直すこと**（ずれると全部 montbell 扱いになり、Apple の監視が止まる）。
 - **モンベルの遮断は「常時」ではなく「runner のIPしだい」（実測）。** 2026-08-09 に連続で試したところ、01:36 と 01:39 の run は **1.8〜3秒で成功**、01:50 の run は **60秒の接続タイムアウト**。同じコード・同じ時間帯でこうなるので、原因は runner ごとに割り当てが変わる Azure IP のブロック状態。ローカル（日本の家庭用回線）は3回連続0.5秒以内で成功しており、常に健全。
   - 対策1: **1日3回に時間を散らして叩く**（1回だけだと外れた日が丸ごと欠測になる）。在庫継続中は再通知しないので、通知が3倍になることはない。
   - 対策2: `MontbellWatcher.timeout = 25`。遮断された回に60秒待たされるのが無駄なので短く切っている。
@@ -102,7 +103,7 @@ TARGETS = {
 }
 ```
 
-3. `.github/workflows/watch.yml` の `targets="${INPUT_TARGET:-apple-16e montbell}"` に `myshop` を足す。
+3. `.github/workflows/watch.yml` の `run:` の対象分岐（`targets=...` の行）に `myshop` を足す。
 
 必要に応じて `describe()`（本文の1行表示）、`fetch_url`（監視ページと取得ページが別なとき）、`headers()` もオーバーライドできます。
 

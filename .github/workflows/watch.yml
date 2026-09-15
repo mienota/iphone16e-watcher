@@ -3,7 +3,7 @@ name: Stock watchers
 on:
   schedule:
     # cronはUTC。GitHub側の混雑で間引かれるので「最短でもこの間隔」という意味。
-    - cron: "*/10 * * * *"   # 高頻度: apple-16e（整備済は早い者勝ち）
+    - cron: "*/10 * * * *"   # 高頻度: apple-16e / apple-17e（整備済は早い者勝ち）
     # montbell は runner のIPによって遮断されたりされなかったりする（1/3くらい失敗）。
     # 1日1回だと外れた日が丸ごと欠測になるので、時間を散らして1日3回叩く。
     # 在庫が続いている間は再通知しない仕組みなので、通知が3倍になることはない。
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "監視対象。空なら定期実行と同じ（apple-16e）。montbell を指定すれば手動でも試せる"
+        description: "監視対象（スペース区切りで複数可）。空なら全部（apple-16e apple-17e montbell）を実行する"
         required: false
         default: ""
 
@@ -47,7 +47,7 @@ jobs:
         run: |
           # 対象の決め方:
           #   手動で target 指定あり … それだけ
-          #   10分ごとのcron        … apple-16e
+          #   10分ごとのcron        … apple-16e と apple-17e
           #   それ以外のcron        … montbell（時刻を足しても下の分岐は触らなくていい）
           #   手動で target 空欄     … 全部（動作確認用）
           # montbell は runner のIPしだいで接続タイムアウトする。失敗しても
@@ -56,11 +56,11 @@ jobs:
           if [ -n "$INPUT_TARGET" ]; then
             targets="$INPUT_TARGET"
           elif [ "$SCHEDULE" = "*/10 * * * *" ]; then
-            targets="apple-16e"
+            targets="apple-16e apple-17e"
           elif [ -n "$SCHEDULE" ]; then
             targets="montbell"
           else
-            targets="apple-16e montbell"
+            targets="apple-16e apple-17e montbell"
           fi
           echo "対象: $targets"
           for t in $targets; do
